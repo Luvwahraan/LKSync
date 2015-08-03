@@ -3,8 +3,8 @@
 use warning;
 use strict;
 
-my $login = 'Oslarth';
-my $password = 'UnBocageTueDesMouches';
+my $login = '';
+my $password = '';
 
 my $API = 'http://leekwars.com/api';
 my %api = (
