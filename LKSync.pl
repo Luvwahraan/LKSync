@@ -32,7 +32,7 @@ sub pullAI;
 my $ua = LWP::UserAgent->new(
   'agent' => "LKSync $VERSION ($^O)",# );
   cookie_jar => HTTP::Cookies->new(
-      file           => '/tmp/$0.cookie',
+      file           => "/tmp/$0.cookie",
       autosave       => 1,
       ignore_discard => 1,
     )
@@ -83,8 +83,8 @@ sub pushAI {
     $ai_hash->{$file->{id}} = $file->{name};
   }
 
-  use Data::Dumper;
-  print Dumper($ai_hash);
+  #use Data::Dumper;
+  #print Dumper($ai_hash);
 
   my $dir = "$rep/by-id";
   opendir(my $DH, $dir) or die("Impossible de lire $rep\n");
@@ -148,6 +148,54 @@ sub pullAI {
     # On met les données dans le bon fichier, puis on créer un lien symbolique vers
     # ce dernier, pour l’avoir par son id.
     open(FH, ">$file") or die("Impossible d’ouvrir '$file'\n");
+    binmode(FH, ":utf8");
+    print FH $content;
+    close FH;
+
+    symlink( $file, $idfile ) unless ( -l "$idfile");
+  }
+}
+
+
+
+sub pullNewAI {
+  die("Option --directory absente ; abandon.\n") unless ( defined $rep && ! $rep eq '' );
+  #$rep =~ s/ /\ /g;
+
+  foreach my $file( @{$AI->{'ais'}}  ) {
+    my $id = $file->{id};
+    my $name = $file->{name};
+    my $filename = "$rep/by-name/$name.js";
+    my $idfile = "$rep/by-id/$id.js";
+
+    # On passe au suivant si le fichier existe.
+    if ( -f $idfile ) {
+      next;
+    }
+
+    print "Récupération de l’IA $name ($id).\n";
+
+    $res = $ua->post("$URL/ai/get/", Content => [ai_id => $id, token => '$']);
+    die( 'Récupération échouée : '.$res->status_line."\n" ) unless ( $res->is_success );
+
+    my $content = parse_json( $res->decoded_content )->{ai}->{code};
+    $content =~ s/\t/  /g;
+
+    # On vérifie les répertoires.
+    die("$rep n’existe pas.\n") unless( -d "$rep");
+    foreach my $d(('by-name','by-id')) {
+      unless ( -d "$rep/$d" ) {
+        print "Création de $rep/$d";
+        mkdir "$rep/$d" or die(" impossible : $!\n");
+        print ".\n";
+      }
+    }
+
+    my $idfile = "$rep/by-id/$id.js";
+
+    # On met les données dans le bon fichier, puis on créer un lien symbolique vers
+    # ce dernier, pour l’avoir par son id.
+    open(FH, ">$filename") or die("Impossible d’ouvrir '$filename'\n");
     binmode(FH, ":utf8");
     print FH $content;
     close FH;
