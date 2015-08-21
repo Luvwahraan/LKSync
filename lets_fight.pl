@@ -9,6 +9,7 @@ use HTTP::Cookies;
 use JSON::Parse 'parse_json';
 
 my $VERSION = '1.0';
+my $wait_time = 15;
 
 my $URL = 'http://leekwars.com/api';
 
@@ -67,7 +68,7 @@ COMBAT: while ($combat > 0 && $count < $max_count) {
 
 
   # On liste nos poireaux.
-  GET_FIGHT: foreach my $leek( keys %{ $garden->{'solo_enemies'} } ) {
+  foreach my $leek( keys %{ $garden->{'solo_enemies'} } ) {
     # Tant qu’à faire, on s’inscrit au tournoi journalier.
     #farmer/register-tournament
     $res = $ua->post("$URL/leek/register-tournament/", Content => [leek_id => $leek, token => '$']);
@@ -92,24 +93,11 @@ COMBAT: while ($combat > 0 && $count < $max_count) {
       $done++;
       print "http://leekwars.com/fight/$response->{fight}\t";
       print "http://leekwars.com/report/$response->{fight}\n";
-      sleep( 3 );
-
-      # fight/get/fight_id
-      #$res = $ua->post(
-      #    "$URL/fight/get",
-      #    Content => [
-      #        fight_id => $response->{fight},
-      #        token => '$' ]
-      #  );
-      #die( 'Récupération du combat échouée : '.$res->status_line."\n" ) unless ( $res->is_success );
-      #my $fight = parse_json( $res->decoded_content );
-      #print Dumper( $fight );
+      sleep( $wait_time );
 
     } else {
       print "Échec d’un combat.\n";
       print Dumper($response),"\n";
-      #$count++;
-      #last GET_FIGHT;
     }
     $count++;
   }
