@@ -13,14 +13,12 @@ my $wait_time = 15;
 
 my $URL = 'http://leekwars.com/api';
 
-my ($login, $password, $cook);
-my $command = 'list';
+my ($login, $password);
 
 GetOptions (
     'login:s'     => \$login,
     'password:s'  => \$password,
   );
-$command = lc $command;
 
 print "Lancement des combats pour : $login.\n";
 
@@ -43,7 +41,7 @@ my $res = $ua->post ( "$URL/farmer/login",
   );
 
 if ( ! $res->is_success) {
-     die 'Login échoué : '.$res->status_line."\n";
+  die 'Login échoué : '.$res->status_line."\n";
 }
 
 
@@ -58,25 +56,19 @@ COMBAT: while ($combat > 0 && $count < $max_count) {
   die( 'Récupération du jardin échouée : '.$res->status_line."\n" ) unless ( $res->is_success );
   my $garden = parse_json( $res->decoded_content )->{'garden'};
 
-  # Le nombre de combats possibles.
+  # Le nombre de combats possibles, et abondon si aucun possible.
   if ( defined $garden->{'solo_fights'} ) {
     $combat = $garden->{'solo_fights'};
     last COMBAT if $combat < 1;
   }
-  #print Dumper $garden;
-  #print "Il reste $combat combats.\n";
-
 
   # On liste nos poireaux.
   foreach my $leek( keys %{ $garden->{'solo_enemies'} } ) {
     # Tant qu’à faire, on s’inscrit au tournoi journalier.
-    #farmer/register-tournament
     $res = $ua->post("$URL/leek/register-tournament/", Content => [leek_id => $leek, token => '$']);
 
-    # Puis leur ennemies possibles.
+    # Liste les ennemies possibles.
     my $enemy = $garden->{'solo_enemies'}->{ $leek }->[rand @{ $garden->{'solo_enemies'}->{ $leek } }];
-
-    #print Dumper( $enemy );
     $res = $ua->post(
         "$URL/garden/start-solo-fight/",
         Content => [
@@ -85,9 +77,9 @@ COMBAT: while ($combat > 0 && $count < $max_count) {
             token => '$' ]
       );
     die( 'Lancement du combat échoué : '.$res->status_line."\n" ) unless ( $res->is_success );
-    #print Dumper parse_json( $res->decoded_content );
     my $response = parse_json( $res->decoded_content );
 
+    # Ça a saigné !
     if ( $response->{'success'} == 1 ) {
       $combat--;
       $done++;
@@ -101,12 +93,6 @@ COMBAT: while ($combat > 0 && $count < $max_count) {
     }
     $count++;
   }
-
-  FIGHT: foreach my $leek( keys %{$fights} ) {
-
-  }
-
-  $count++;
 }
 
 print "$count combats lancés, $done effectués, et $combat restants.\n";
