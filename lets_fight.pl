@@ -1,17 +1,18 @@
 #!/usr/bin/env perl
-#garden/get-solo-challenge/leek_id/token
 
 use warnings;
 use strict;
+
 use Getopt::Long;
 use LWP::UserAgent;
 use HTTP::Cookies;
 use JSON::Parse 'parse_json';
+# use Data::Dumper; # Envie de debug ? (:
 
-my $VERSION = '1.0';
-my $wait_time = 15;
-
-my $URL = 'http://leekwars.com/api';
+my $VERSION = '1.1';
+my $wait_time = 3;
+my $URL = 'http://leekwars.com';
+my $API_URL = "$URL/api";
 
 my ($login, $password);
 
@@ -20,7 +21,6 @@ GetOptions (
     'password:s'  => \$password,
   );
 
-print "Lancement des combats pour : $login.\n";
 
 my $ua = LWP::UserAgent->new(
   'agent' => "LKFight $login $VERSION ($^O)",
@@ -32,7 +32,7 @@ my $ua = LWP::UserAgent->new(
   );
 
 # Login
-my $res = $ua->post ( "$URL/farmer/login",
+my $res = $ua->post ( "$API_URL/farmer/login",
     Content       => [
         login     => $login,
         password  => $password,
@@ -44,33 +44,41 @@ if ( ! $res->is_success) {
   die 'Login échoué : '.$res->status_line."\n";
 }
 
-
-my $fights;
-my $max_count = 90*3;
-my $combat = 30;
-my $count = 0;
-my $done = 0;
-COMBAT: while ($combat > 0 && $count < $max_count) {
-
-  $res = $ua->post("$URL/garden/get", Content => [token => '$']);
+sub getGarden {
+  my $res = $ua->post("$API_URL/garden/get", Content => [token => '$']);
   die( 'Récupération du jardin échouée : '.$res->status_line."\n" ) unless ( $res->is_success );
-  my $garden = parse_json( $res->decoded_content )->{'garden'};
+  return parse_json( $res->decoded_content )->{'garden'};
+}
 
-  # Le nombre de combats possibles, et abondon si aucun possible.
-  if ( defined $garden->{'solo_fights'} ) {
-    $combat = $garden->{'solo_fights'};
-    last COMBAT if $combat < 1;
-  }
+# Un petit tour dans le potager…
+my $garden = getGarden();
+my $myLeeks = {};
 
-  # On liste nos poireaux.
-  foreach my $leek( keys %{ $garden->{'solo_enemies'} } ) {
-    # Tant qu’à faire, on s’inscrit au tournoi journalier.
-    $res = $ua->post("$URL/leek/register-tournament/", Content => [leek_id => $leek, token => '$']);
+# On récupère les poireaux, et leurs nombres de combats restants.
+if ( $garden->{'leek_fights'} && ! scalar %{$myLeeks} ) {
+  $myLeeks = $garden->{'leek_fights'};
+} else {
+  die('Pas de poireaux… WTF ?!'."\n");
+}
 
-    # Liste les ennemies possibles.
+
+# On parcours les poireaux.
+foreach my $leek( keys %{$myLeeks} ) {
+  print STDOUT "Combat du poireau $leek pour $login.\n";
+
+  # Tant que le poireau courant a des combats possibles, on bastonne.
+  for (my $i = $myLeeks->{$leek}; $i > 0; $i-- ) {
+
+    # Comme nous sommes des gens civilisés, on évite de pourrir le serveur.
+    sleep( $wait_time );
+
+    # On se balade de nouveau dans le potager, des fois qu’il y aurait une carotte.
+    $garden = getGarden();
+
+    # On aggresse un poireau au hasard.
     my $enemy = $garden->{'solo_enemies'}->{ $leek }->[rand @{ $garden->{'solo_enemies'}->{ $leek } }];
     $res = $ua->post(
-        "$URL/garden/start-solo-fight/",
+        "$API_URL/garden/start-solo-fight/",
         Content => [
             leek_id => $leek,
             target_id => $enemy->{'id'},
@@ -81,27 +89,12 @@ COMBAT: while ($combat > 0 && $count < $max_count) {
 
     # Ça a saigné !
     if ( $response->{'success'} == 1 ) {
-      $combat--;
-      $done++;
-      print "http://leekwars.com/fight/$response->{fight}\t";
-      print "http://leekwars.com/report/$response->{fight}\n";
-      sleep( $wait_time );
-
+      print "$URL/fight/$response->{fight}\t$URL/report/$response->{fight}\n";
     } else {
-      print "Échec d’un combat.\n";
-      print Dumper($response),"\n";
+      print STDERR "Échec du combat contre « $enemy ».";
     }
-    $count++;
   }
 }
 
-print "$count combats lancés, $done effectués, et $combat restants.\n";
-
-
-
-
 
 __END__
-
-
-
